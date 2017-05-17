@@ -12,10 +12,10 @@ def parse_text(text):
 
 
 def get_imagemap(lat, lon, size):
-	url = """https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/%s,%s,17/%sx%s?access_token=pk.eyJ1IjoiZXRpYmR2IiwiYSI6ImNpejhvdWJmcjAwMW8yd28weTkzMnA1aDkifQ.i8UKq0M_sIN1qq8F6UAgFw""" %(lat,lon,size,size)
+	url = """https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/%s,%s,15/%sx%s?access_token=pk.eyJ1IjoiZXRpYmR2IiwiYSI6ImNpejhvdWJmcjAwMW8yd28weTkzMnA1aDkifQ.i8UKq0M_sIN1qq8F6UAgFw""" %(lat,lon,size,size)
 	response = requests.get(url)
 	img = Image.open(BytesIO(response.content))
-	return np.asarray(img)
+	return img
 
 
 
@@ -40,28 +40,30 @@ query = """SELECT '{"type":"Feature","properties":{"id":'|| osm_id::text
 
 '''
 
-query = """SELECT ST_AsText(st_centroid(geom))
-        FROM buildings b
-        WHERE ST_Contains( ST_SetSRID(ST_GeomFromGeoJSON('%s'),4326),geom) AND b.orient_type IS NULL
-        GROUP by osm_id, geom
-        ORDER BY random()
-        ;""" % (pays)
+query = """SELECT b.osm_id,  ST_AsText(st_centroid(b.geom)),c.orientation
+        FROM buildings b INNER JOIN results c ON b.osm_id = c.osm_id  
+        WHERE b.orientation is null 
+        and c.orientation != 'inconnue' 
+        and c.orientation != 'arret' """
 
 cur.execute(query)
 rows = cur.fetchall()
 
 
-result = []
-j = 0
-t= len(rows)
-for i in rows:
-	print(j+" on "+t)
-	j += 1
-	x, y = parse_text(i[0])
-	img = get_imagemap(x,y,20)
-	result.append(img)
+def generateur_image(rows):
+	for i in rows:
+		x, y = parse_text(i[1])
+		img = get_imagemap(x,y,120)
+		yield [i[0], i[2], img]
 
-print(result)
+
+
+bouh = generateur_image(rows)
+for i in bouh: 
+	i[2].save(str(i[0])+'-'+i[1]+'.png')
+	
+
+
 '''
 if len(rows) > 0:
     # return de Featurecollection when we have several buildings...
@@ -73,4 +75,10 @@ else:
         respbody = building[0]
     except:
         respbody = '{"message":"no building"}'
+                WHERE ST_Contains( ST_SetSRID(ST_GeomFromGeoJSON(ys)
+
+'{"type":"Feature","properties":{"id":'||osm_id::text
+			||', "center": '|| ST_AsText(st_centroid(geom))::text
+			||', "class":'|| orientation::text ||'}'
+
 '''
